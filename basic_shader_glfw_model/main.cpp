@@ -17,6 +17,7 @@ using namespace std;
 
 GLuint gProgram;
 int gWidth, gHeight;
+int satirSayisi, sutunSayisi;
 
 struct Vertex {
     Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) {}
@@ -345,8 +346,8 @@ void initVBO() {
 }
 
 
-void init() {
-    ParseObj("armadillo.obj");
+void init(const char *objFileName) {
+    ParseObj(objFileName);
     //ParseObj("bunny.obj");
 
     glEnable(GL_DEPTH_TEST);
@@ -364,6 +365,17 @@ void drawModel() {
     glDrawElements(GL_TRIANGLES, gFaces.size() * 3, GL_UNSIGNED_INT, 0);
 }
 
+class Tavsan {
+public:
+    void ciz(int i, int j, float angle) {
+        glLoadIdentity();
+        glTranslatef(0, 0, -10);
+        glRotatef(angle, 0, 1, 0);
+
+        drawModel();
+    }
+};
+
 void display() {
     glClearColor(0, 0, 0, 1);
     glClearDepth(1.0f);
@@ -372,11 +384,16 @@ void display() {
 
     static float angle = 0;
 
-    glLoadIdentity();
-    glTranslatef(0, 0, -10);
-    glRotatef(angle, 0, 1, 0);
 
-    drawModel();
+    // todo: her model icin isik kaynagi olustur
+    // todo: renk
+    // todo: tavsanlar matrisi olustur
+    Tavsan().ciz(0, 0, angle);
+
+
+
+
+
 
     angle += 0.5;
 }
@@ -430,8 +447,8 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
         exit(-1);
     }
 
-    int satirSayisi = stoi(argv[2]);
-    int sutunSayisi = stoi(argv[1]);
+    satirSayisi = stoi(argv[2]);
+    sutunSayisi = stoi(argv[1]);
     auto objectDosyasi = argv[3];
     printf("satir: %d, sutun: %d, objectDosyasi: %s\n", satirSayisi, sutunSayisi, objectDosyasi);
 
@@ -449,7 +466,6 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
     }
 
 
-
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
@@ -465,7 +481,7 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
     strcat(rendererInfo, (const char *) glGetString(GL_VERSION));
     glfwSetWindowTitle(window, rendererInfo);
 
-    init();
+    init(objectDosyasi);
 
     glfwSetKeyCallback(window, keyboard);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
