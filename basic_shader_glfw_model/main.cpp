@@ -392,8 +392,8 @@ void reshape(GLFWwindow *window, int w, int h) {
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    //glOrtho(-10, 10, -10, 10, -10, 10);
-    gluPerspective(45, 1, 1, 100);
+    glOrtho(-10, 10, -10, 10, -20, 20);
+    //gluPerspective(45, 1, 1, 100);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -430,6 +430,11 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
         exit(-1);
     }
 
+    int satirSayisi = stoi(argv[2]);
+    int sutunSayisi = stoi(argv[1]);
+    auto objectDosyasi = argv[3];
+    printf("satir: %d, sutun: %d, objectDosyasi: %s\n", satirSayisi, sutunSayisi, objectDosyasi);
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
@@ -442,6 +447,8 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
         glfwTerminate();
         exit(-1);
     }
+
+
 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
