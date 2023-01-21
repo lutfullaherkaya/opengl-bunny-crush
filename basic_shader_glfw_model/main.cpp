@@ -18,7 +18,6 @@
 #include FT_FREETYPE_H
 
 #define BUFFER_OFFSET(i) ((char*)NULL + (i))
-
 /*
  * 2 Specifications
 1. YAPILDI The executable file for this assignment will be named “hw3” with a window size of 640 × 600.
@@ -81,28 +80,17 @@ window, so that the player can see their progress as they play.
 objects. If the user presses the ’ESC’ key, the game will close. This will allow the player to
 easily restart the game or exit the game if they wish.
  */
-
-
-
 using namespace std;
 
-GLuint gProgram;
-GLuint gProgram2ForTxt;
-int gWidth, gHeight;
+GLuint gProgram[3];
+GLint gIntensityLoc;
+float gIntensity = 1000;
+int gWidth = 640, gHeight = 600;
 int satirSayisi, sutunSayisi;
 GLfloat objeGenisligi, objeYuksekligi;
 float hucreGenisligi;
 float hucreYuksekligi;
 GLFWwindow *window;
-
-
-struct Character {
-    GLuint TextureID;   // ID handle of the glyph texture
-    glm::ivec2 Size;    // Size of glyph
-    glm::ivec2 Bearing;  // Offset from baseline to left/top of glyph
-    GLuint Advance;    // Horizontal offset to advance to next glyph
-};
-std::map<GLchar, Character> Characters;
 
 struct Vertex {
     Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) {}
@@ -147,10 +135,21 @@ GLuint gVertexAttribBuffer, gTextVBO, gIndexBuffer;
 GLint gInVertexLoc, gInNormalLoc;
 int gVertexDataSizeInBytes, gNormalDataSizeInBytes;
 
+/// Holds all state information relevant to a character as loaded using FreeType
+struct Character {
+    GLuint TextureID;   // ID handle of the glyph texture
+    glm::ivec2 Size;    // Size of glyph
+    glm::ivec2 Bearing;  // Offset from baseline to left/top of glyph
+    GLuint Advance;    // Horizontal offset to advance to next glyph
+};
+
+std::map<GLchar, Character> Characters;
+
+
 bool ParseObj(const string &fileName) {
     fstream myfile;
 
-    // Open the input 
+    // Open the input
     myfile.open(fileName.c_str(), std::ios::in);
 
     if (myfile.is_open()) {
@@ -276,7 +275,7 @@ bool ReadDataFromFile(
 {
     fstream myfile;
 
-    // Open the input 
+    // Open the input
     myfile.open(fileName.c_str(), std::ios::in);
 
     if (myfile.is_open()) {
@@ -297,53 +296,7 @@ bool ReadDataFromFile(
     return true;
 }
 
-void createVS() {
-    string shaderSource;
-
-    string filename("vert.glsl");
-    if (!ReadDataFromFile(filename, shaderSource)) {
-        cout << "Cannot find file name: " + filename << endl;
-        exit(-1);
-    }
-
-    GLint length = shaderSource.length();
-    const GLchar *shader = (const GLchar *) shaderSource.c_str();
-
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &shader, &length);
-    glCompileShader(vs);
-
-    char output[1024] = {0};
-    glGetShaderInfoLog(vs, 1024, &length, output);
-    printf("VS compile log: %s\n", output);
-
-    glAttachShader(gProgram, vs);
-}
-
-void createFS() {
-    string shaderSource;
-
-    string filename("frag.glsl");
-    if (!ReadDataFromFile(filename, shaderSource)) {
-        cout << "Cannot find file name: " + filename << endl;
-        exit(-1);
-    }
-
-    GLint length = shaderSource.length();
-    const GLchar *shader = (const GLchar *) shaderSource.c_str();
-
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &shader, &length);
-    glCompileShader(fs);
-
-    char output[1024] = {0};
-    glGetShaderInfoLog(fs, 1024, &length, output);
-    printf("FS compile log: %s\n", output);
-
-    glAttachShader(gProgram, fs);
-}
-
-void createVSForTxt(GLuint &program, const string &filename) {
+void createVS(GLuint &program, const string &filename) {
     string shaderSource;
 
     if (!ReadDataFromFile(filename, shaderSource)) {
@@ -365,7 +318,7 @@ void createVSForTxt(GLuint &program, const string &filename) {
     glAttachShader(program, vs);
 }
 
-void createFSForTxt(GLuint &program, const string &filename) {
+void createFS(GLuint &program, const string &filename) {
     string shaderSource;
 
     if (!ReadDataFromFile(filename, shaderSource)) {
@@ -388,21 +341,107 @@ void createFSForTxt(GLuint &program, const string &filename) {
 }
 
 void initShaders() {
-    gProgram = glCreateProgram();
-    gProgram2ForTxt = glCreateProgram();
+    gProgram[0] = glCreateProgram();
+    gProgram[1] = glCreateProgram();
+    gProgram[2] = glCreateProgram();
+
+    createVS(gProgram[0], "vert0.glsl");
+    createFS(gProgram[0], "frag0.glsl");
+
+    createVS(gProgram[1], "vert1.glsl");
+    createFS(gProgram[1], "frag1.glsl");
+
+    createVS(gProgram[2], "vert_text.glsl");
+    createFS(gProgram[2], "frag_text.glsl");
+
+    glBindAttribLocation(gProgram[0], 0, "inVertex");
+    glBindAttribLocation(gProgram[0], 1, "inNormal");
+    glBindAttribLocation(gProgram[1], 0, "inVertex");
+    glBindAttribLocation(gProgram[1], 1, "inNormal");
+    glBindAttribLocation(gProgram[2], 2, "vertex");
+
+    glLinkProgram(gProgram[0]);
+    glLinkProgram(gProgram[1]);
+    glLinkProgram(gProgram[2]);
+    glUseProgram(gProgram[0]);
+
+    gIntensityLoc = glGetUniformLocation(gProgram[0], "intensity");
+    cout << "gIntensityLoc = " << gIntensityLoc << endl;
+    glUniform1f(gIntensityLoc, gIntensity);
+}
+
+void initVBO() {
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    assert(glGetError() == GL_NONE);
+
+    glGenBuffers(1, &gVertexAttribBuffer);
+    glGenBuffers(1, &gIndexBuffer);
+
+    assert(gVertexAttribBuffer > 0 && gIndexBuffer > 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, gVertexAttribBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBuffer);
+
+    gVertexDataSizeInBytes = gVertices.size() * 3 * sizeof(GLfloat);
+    gNormalDataSizeInBytes = gNormals.size() * 3 * sizeof(GLfloat);
+    int indexDataSizeInBytes = gFaces.size() * 3 * sizeof(GLuint);
+    GLfloat *vertexData = new GLfloat[gVertices.size() * 3];
+    GLfloat *normalData = new GLfloat[gNormals.size() * 3];
+    GLuint *indexData = new GLuint[gFaces.size() * 3];
+
+    float minX = 1e6, maxX = -1e6;
+    float minY = 1e6, maxY = -1e6;
+    float minZ = 1e6, maxZ = -1e6;
+
+    for (int i = 0; i < gVertices.size(); ++i) {
+        vertexData[3 * i] = gVertices[i].x;
+        vertexData[3 * i + 1] = gVertices[i].y;
+        vertexData[3 * i + 2] = gVertices[i].z;
+
+        minX = std::min(minX, gVertices[i].x);
+        maxX = std::max(maxX, gVertices[i].x);
+        minY = std::min(minY, gVertices[i].y);
+        maxY = std::max(maxY, gVertices[i].y);
+        minZ = std::min(minZ, gVertices[i].z);
+        maxZ = std::max(maxZ, gVertices[i].z);
+    }
+
+    std::cout << "minX = " << minX << std::endl;
+    std::cout << "maxX = " << maxX << std::endl;
+    std::cout << "minY = " << minY << std::endl;
+    std::cout << "maxY = " << maxY << std::endl;
+    std::cout << "minZ = " << minZ << std::endl;
+    std::cout << "maxZ = " << maxZ << std::endl;
+    objeGenisligi = maxX - minX;
+    objeYuksekligi = maxY - minY;
+
+    for (int i = 0; i < gNormals.size(); ++i) {
+        normalData[3 * i] = gNormals[i].x;
+        normalData[3 * i + 1] = gNormals[i].y;
+        normalData[3 * i + 2] = gNormals[i].z;
+    }
+
+    for (int i = 0; i < gFaces.size(); ++i) {
+        indexData[3 * i] = gFaces[i].vIndex[0];
+        indexData[3 * i + 1] = gFaces[i].vIndex[1];
+        indexData[3 * i + 2] = gFaces[i].vIndex[2];
+    }
 
 
-    createVSForTxt(gProgram, "vert.glsl");
-    createFSForTxt(gProgram, "frag.glsl");
-    createVSForTxt(gProgram2ForTxt, "vert_text.glsl");
-    createFSForTxt(gProgram2ForTxt, "frag_text.glsl");
+    glBufferData(GL_ARRAY_BUFFER, gVertexDataSizeInBytes + gNormalDataSizeInBytes, 0, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, gVertexDataSizeInBytes, vertexData);
+    glBufferSubData(GL_ARRAY_BUFFER, gVertexDataSizeInBytes, gNormalDataSizeInBytes, normalData);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexDataSizeInBytes, indexData, GL_STATIC_DRAW);
 
-    glBindAttribLocation(gProgram2ForTxt, 2, "vertex");
+    // done copying; can free now
+    delete[] vertexData;
+    delete[] normalData;
+    delete[] indexData;
 
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(gVertexDataSizeInBytes));
 
-    glLinkProgram(gProgram);
-    glLinkProgram(gProgram2ForTxt);
-    glUseProgram(gProgram);
 }
 
 void initFonts(int windowWidth, int windowHeight) {
@@ -411,9 +450,10 @@ void initFonts(int windowWidth, int windowHeight) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glm::mat4 projection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -20.0f, 20.0f);
-    glUseProgram(gProgram2ForTxt);
-    glUniformMatrix4fv(glGetUniformLocation(gProgram2ForTxt, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glm::mat4 projection = glm::ortho(0.0f, static_cast<GLfloat>(windowWidth), 0.0f,
+                                      static_cast<GLfloat>(windowHeight));
+    glUseProgram(gProgram[2]);
+    glUniformMatrix4fv(glGetUniformLocation(gProgram[2], "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
     // FreeType
     FT_Library ft;
@@ -489,88 +529,9 @@ void initFonts(int windowWidth, int windowHeight) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void initVBO() {
-    GLuint vao;
-    glGenVertexArrays(1, &vao);
-    assert(vao > 0);
-    glBindVertexArray(vao);
-    cout << "vao = " << vao << endl;
-
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    assert(glGetError() == GL_NONE);
-
-    glGenBuffers(1, &gVertexAttribBuffer);
-    glGenBuffers(1, &gIndexBuffer);
-
-    assert(gVertexAttribBuffer > 0 && gIndexBuffer > 0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, gVertexAttribBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBuffer);
-
-    gVertexDataSizeInBytes = gVertices.size() * 3 * sizeof(GLfloat);
-    gNormalDataSizeInBytes = gNormals.size() * 3 * sizeof(GLfloat);
-    int indexDataSizeInBytes = gFaces.size() * 3 * sizeof(GLuint);
-    GLfloat *vertexData = new GLfloat[gVertices.size() * 3];
-    GLfloat *normalData = new GLfloat[gNormals.size() * 3];
-    GLuint *indexData = new GLuint[gFaces.size() * 3];
-
-    float minX = 1e6, maxX = -1e6;
-    float minY = 1e6, maxY = -1e6;
-    float minZ = 1e6, maxZ = -1e6;
-
-    for (int i = 0; i < gVertices.size(); ++i) {
-        vertexData[3 * i] = gVertices[i].x;
-        vertexData[3 * i + 1] = gVertices[i].y;
-        vertexData[3 * i + 2] = gVertices[i].z;
-
-        minX = std::min(minX, gVertices[i].x);
-        maxX = std::max(maxX, gVertices[i].x);
-        minY = std::min(minY, gVertices[i].y);
-        maxY = std::max(maxY, gVertices[i].y);
-        minZ = std::min(minZ, gVertices[i].z);
-        maxZ = std::max(maxZ, gVertices[i].z);
-        objeGenisligi = maxX - minX;
-        objeYuksekligi = maxY - minY;
-    }
-
-    std::cout << "minX = " << minX << std::endl;
-    std::cout << "maxX = " << maxX << std::endl;
-    std::cout << "minY = " << minY << std::endl;
-    std::cout << "maxY = " << maxY << std::endl;
-    std::cout << "minZ = " << minZ << std::endl;
-    std::cout << "maxZ = " << maxZ << std::endl;
-
-    for (int i = 0; i < gNormals.size(); ++i) {
-        normalData[3 * i] = gNormals[i].x;
-        normalData[3 * i + 1] = gNormals[i].y;
-        normalData[3 * i + 2] = gNormals[i].z;
-    }
-
-    for (int i = 0; i < gFaces.size(); ++i) {
-        indexData[3 * i] = gFaces[i].vIndex[0];
-        indexData[3 * i + 1] = gFaces[i].vIndex[1];
-        indexData[3 * i + 2] = gFaces[i].vIndex[2];
-    }
-
-
-    glBufferData(GL_ARRAY_BUFFER, gVertexDataSizeInBytes + gNormalDataSizeInBytes, 0, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, gVertexDataSizeInBytes, vertexData);
-    glBufferSubData(GL_ARRAY_BUFFER, gVertexDataSizeInBytes, gNormalDataSizeInBytes, normalData);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexDataSizeInBytes, indexData, GL_STATIC_DRAW);
-
-    // done copying; can free now
-    delete[] vertexData;
-    delete[] normalData;
-    delete[] indexData;
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(gVertexDataSizeInBytes));
-}
-
-
 void init(const char *objFileName) {
     ParseObj(objFileName);
+    //ParseObj("armadillo.obj");
     //ParseObj("bunny.obj");
 
     glEnable(GL_DEPTH_TEST);
@@ -580,7 +541,6 @@ void init(const char *objFileName) {
 }
 
 void drawModel() {
-    glUseProgram(gProgram);
     glBindBuffer(GL_ARRAY_BUFFER, gVertexAttribBuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBuffer);
 
@@ -592,8 +552,8 @@ void drawModel() {
 
 void renderText(const std::string &text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color) {
     // Activate corresponding render state
-    glUseProgram(gProgram2ForTxt);
-    glUniform3f(glGetUniformLocation(gProgram2ForTxt, "textColor"), color.x, color.y, color.z);
+    glUseProgram(gProgram[2]);
+    glUniform3f(glGetUniformLocation(gProgram[2], "textColor"), color.x, color.y, color.z);
     glActiveTexture(GL_TEXTURE0);
 
     // Iterate through all characters
@@ -661,14 +621,21 @@ public:
 
     void ciz(float angle) {
         // todo: color
-        glLoadIdentity();
-        glTranslatef(x, y, -10);
+        glUseProgram(gProgram[0]);
+
+
+
+        //glTranslatef(x, y, -10);
+        glm::mat4 T = glm::translate(glm::mat4(1.f), glm::vec3(x, y, -10.f));
+        glm::mat4 modelMat = T;
 
         GLfloat olmasiGerekenGenislik = 20.0 / sutunSayisi;
         GLfloat olmasiGerekenYukseklik = 20.0 / satirSayisi;
         GLfloat genislikScale = (olmasiGerekenGenislik / objeGenisligi) * 0.67;
         GLfloat yukseklikScale = (olmasiGerekenYukseklik / objeYuksekligi) * 0.67;
-        glScalef(genislikScale, yukseklikScale, 1);
+
+        //glScalef(genislikScale, yukseklikScale, 1);
+        modelMat = modelMat * glm::scale(glm::mat4(1.f), glm::vec3(genislikScale, yukseklikScale, 1));
 
         if (patliyor) {
             patlamaScale += 0.01;
@@ -687,9 +654,20 @@ public:
                 animasyonOynuyor = false;
             }
         }
+        // todo:
+        //glScalef(patlamaScale, patlamaScale, 1);
+        modelMat = modelMat * glm::scale(glm::mat4(1.f), glm::vec3(patlamaScale, patlamaScale, 1));
+        //glRotatef(angle, 0, 1, 0);
+        modelMat = modelMat * glm::rotate(glm::mat4(1.f), glm::radians(angle), glm::vec3(0, 1, 0));
 
-        glScalef(patlamaScale, patlamaScale, 1);
-        glRotatef(angle, 0, 1, 0);
+        glm::mat4 modelMatInv = glm::transpose(glm::inverse(modelMat));
+        //glm::mat4 perspMat = glm::perspective(glm::radians(45.0f), 1.f, 1.0f, 100.0f);
+        glm::mat4 orthoProj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -20.0f, 20.0f);
+
+        glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMat"), 1, GL_FALSE, glm::value_ptr(modelMat));
+        glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMatInvTr"), 1, GL_FALSE, glm::value_ptr(modelMatInv));
+        glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "perspectiveMat"), 1, GL_FALSE, glm::value_ptr(orthoProj));
+
         if (!patladi) {
             drawModel();
         }
@@ -799,13 +777,45 @@ void display() {
 
     static float angle = 0;
 
-
     // todo: her model icin isik kaynagi olustur
     // todo: renk
     // todo: boyut
 
     tavsanlar->ciz(angle);
 
+    /*glUseProgram(gProgram[0]);
+    //glLoadIdentity();
+    //glTranslatef(-2, 0, -10);
+    //glRotatef(angle, 0, 1, 0);
+
+    glm::mat4 T = glm::translate(glm::mat4(1.f), glm::vec3(-2.f, 0.f, -10.f));
+    glm::mat4 R = glm::rotate(glm::mat4(1.f), glm::radians(angle), glm::vec3(0, 1, 0));
+    glm::mat4 modelMat = T * R;
+    glm::mat4 modelMatInv = glm::transpose(glm::inverse(modelMat));
+    glm::mat4 perspMat = glm::perspective(glm::radians(45.0f), 1.f, 1.0f, 100.0f);
+    glm::mat4 ortho = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -20.0f, 20.0f);
+
+    glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMat"), 1, GL_FALSE, glm::value_ptr(modelMat));
+    glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMatInvTr"), 1, GL_FALSE, glm::value_ptr(modelMatInv));
+    glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "perspectiveMat"), 1, GL_FALSE, glm::value_ptr(ortho));
+
+    drawModel();
+
+    glUseProgram(gProgram[1]);
+    //glLoadIdentity();
+    //glTranslatef(2, 0, -10);
+    //glRotatef(-angle, 0, 1, 0);
+
+    T = glm::translate(glm::mat4(1.f), glm::vec3(2.f, 0.f, -10.f));
+    R = glm::rotate(glm::mat4(1.f), glm::radians(-angle), glm::vec3(0, 1, 0));
+    modelMat = T * R;
+    modelMatInv = glm::transpose(glm::inverse(modelMat));
+
+    glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "modelingMat"), 1, GL_FALSE, glm::value_ptr(modelMat));
+    glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "modelingMatInvTr"), 1, GL_FALSE, glm::value_ptr(modelMatInv));
+    glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "perspectiveMat"), 1, GL_FALSE, glm::value_ptr(perspMat));
+
+    drawModel();*/
     assert(glGetError() == GL_NO_ERROR);
 
     renderText("CENG 477 - 2022", 0, 0, 1, glm::vec3(0, 1, 1));
@@ -823,7 +833,6 @@ void reshape(GLFWwindow *window, int w, int h) {
     gHeight = h;
 
     glViewport(0, 0, w, h);
-
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(-10, 10, -10, 10, -20, 20);
@@ -836,6 +845,24 @@ void reshape(GLFWwindow *window, int w, int h) {
 void keyboard(GLFWwindow *window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GL_TRUE);
+    } else if (key == GLFW_KEY_F && action == GLFW_PRESS) {
+        cout << "F pressed" << endl;
+        glUseProgram(gProgram[1]);
+    } else if (key == GLFW_KEY_V && action == GLFW_PRESS) {
+        cout << "V pressed" << endl;
+        glUseProgram(gProgram[0]);
+    } else if (key == GLFW_KEY_D && action == GLFW_PRESS) {
+        cout << "D pressed" << endl;
+        gIntensity /= 1.5;
+        cout << "gIntensity = " << gIntensity << endl;
+        glUseProgram(gProgram[0]);
+        glUniform1f(gIntensityLoc, gIntensity);
+    } else if (key == GLFW_KEY_B && action == GLFW_PRESS) {
+        cout << "B pressed" << endl;
+        gIntensity *= 1.5;
+        cout << "gIntensity = " << gIntensity << endl;
+        glUseProgram(gProgram[0]);
+        glUniform1f(gIntensityLoc, gIntensity);
     } else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         delete tavsanlar;
         tavsanlar = new Tavsanlar();
@@ -872,6 +899,7 @@ void mainLoop(GLFWwindow *window) {
 
 int main(int argc, char **argv)   // Create Main Function For Bringing It All Together
 {
+    GLFWwindow *window;
     if (!glfwInit()) {
         exit(-1);
     }
@@ -884,19 +912,18 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
     auto objectDosyasi = argv[3];
     printf("satir: %d, sutun: %d, objectDosyasi: %s\n", satirSayisi, sutunSayisi, objectDosyasi);
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    int width = 640, height = 600;
-    window = glfwCreateWindow(width, height, "Simple Example", NULL, NULL);
+    window = glfwCreateWindow(gWidth, gHeight, "Simple Example", NULL, NULL);
 
     if (!window) {
         glfwTerminate();
         exit(-1);
     }
-
 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
@@ -917,10 +944,9 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
 
     glfwSetKeyCallback(window, keyboard);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
-
     glfwSetWindowSizeCallback(window, reshape);
 
-    reshape(window, width, height); // need to call this once ourselves
+    reshape(window, gWidth, gHeight); // need to call this once ourselves
     mainLoop(window); // this does not return unless the window is closed
 
     glfwDestroyWindow(window);
