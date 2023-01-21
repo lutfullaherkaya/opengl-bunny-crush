@@ -18,6 +18,8 @@ using namespace std;
 GLuint gProgram;
 int gWidth, gHeight;
 int satirSayisi, sutunSayisi;
+GLfloat objeGenisligi, objeYuksekligi;
+
 
 struct Vertex {
     Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) {}
@@ -309,6 +311,8 @@ void initVBO() {
         maxY = std::max(maxY, gVertices[i].y);
         minZ = std::min(minZ, gVertices[i].z);
         maxZ = std::max(maxZ, gVertices[i].z);
+        objeGenisligi = maxX - minX;
+        objeYuksekligi = maxY - minY;
     }
 
     std::cout << "minX = " << minX << std::endl;
@@ -367,16 +371,68 @@ void drawModel() {
 
 class Tavsan {
 public:
-    void ciz(int i, int j, float angle) {
-        glLoadIdentity();
-        glTranslatef(0, 0, -10);
-        glRotatef(angle, 0, 1, 0);
+    GLfloat x;
+    GLfloat y;
+    GLfloat genislik;
+    GLfloat yukseklik;
+    std::vector<GLfloat> renk;
 
+    Tavsan() {
+
+    }
+
+
+    void ciz(float angle) {
+        // todo: color
+        glLoadIdentity();
+        glTranslatef(x, y, -10);
+        GLfloat olmasiGerekenGenislik = 20.0 / sutunSayisi;
+        GLfloat olmasiGerekenYukseklik = 20.0 / satirSayisi;
+        GLfloat genislikScale = (olmasiGerekenGenislik / objeGenisligi) * 0.75;
+        GLfloat yukseklikScale = (olmasiGerekenYukseklik / objeYuksekligi) * 0.75;
+        glScalef(genislikScale,yukseklikScale,1);
+        glRotatef(angle, 0, 1, 0);
         drawModel();
     }
 };
 
-void display() {
+class Tavsanlar {
+public:
+    std::vector<std::vector<Tavsan>> tavsanlar;
+    std::vector<std::vector<GLfloat>> colors = {
+            {1.0, 0, 0}, // red
+            {0, 1.0, 0}, // green
+            {0, 0, 1.0}, // blue
+            {1.0, 1.0, 0}, // yellow
+            {1.0, 0, 1.0} // purple
+    };
+
+    Tavsanlar() {
+        tavsanlar = std::vector<std::vector<Tavsan>>(satirSayisi + 1, std::vector<Tavsan>(sutunSayisi));
+        for (int i = 0; i < tavsanlar.size(); ++i) {
+            for (int j = 0; j < tavsanlar[0].size(); ++j) {
+                float hucreGenisligi = 20.0 / sutunSayisi;
+                float hucreYuksekligi = 20.0 / satirSayisi;
+                float hucreX = -10 + (j + 0.5) * hucreGenisligi;
+                float hucreY = 10 - (i - 1 + 0.5) * hucreYuksekligi;
+                tavsanlar[i][j].x = hucreX;
+                tavsanlar[i][j].y = hucreY;
+                tavsanlar[i][j].renk = colors[rand() % 5];
+            }
+        }
+    }
+
+    void ciz(float angle) {
+        for (int i = 0; i < tavsanlar.size(); ++i) {
+            for (int j = 0; j < tavsanlar[0].size(); ++j) {
+                tavsanlar[i][j].ciz(angle);
+            }
+        }
+    }
+};
+
+
+void display(Tavsanlar &tavsanlar) {
     glClearColor(0, 0, 0, 1);
     glClearDepth(1.0f);
     glClearStencil(0);
@@ -387,12 +443,9 @@ void display() {
 
     // todo: her model icin isik kaynagi olustur
     // todo: renk
-    // todo: tavsanlar matrisi olustur
-    Tavsan().ciz(0, 0, angle);
+    // todo: boyut
 
-
-
-
+    tavsanlar.ciz(angle);
 
 
     angle += 0.5;
@@ -433,8 +486,9 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 }
 
 void mainLoop(GLFWwindow *window) {
+    Tavsanlar tavsanlar;
     while (!glfwWindowShouldClose(window)) {
-        display();
+        display(tavsanlar);
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -446,6 +500,7 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
     if (!glfwInit()) {
         exit(-1);
     }
+    srand((unsigned) time(NULL));
 
     satirSayisi = stoi(argv[2]);
     sutunSayisi = stoi(argv[1]);
