@@ -475,7 +475,7 @@ public:
 
         for (int j = 0; j < tavsanlar[0].size(); ++j) {
             std::vector<Tavsan> patlamayanlar;
-            for (int i = 0; i < tavsanlar.size(); ++i) {
+            for (int i = tavsanlar.size()-1; i >= 0 ; --i) {
                 auto& tavsan = tavsanlar[i][j];
                 if (!tavsan.patladi) {
                     patlamayanlar.push_back(tavsan);
@@ -490,7 +490,7 @@ public:
 
                 patlamayanlar.push_back(rastgeleTavsan);
             }
-            for (int i = 0; i < tavsanlar.size(); ++i) {
+            for (int i = tavsanlar.size()-1; i >= 0 ; --i) {
                 tavsanlar[i][j] = patlamayanlar[i];
                 tavsanlar[i][j].olmasiGerekenY = getY(i);
             }
