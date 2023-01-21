@@ -19,7 +19,8 @@ GLuint gProgram;
 int gWidth, gHeight;
 int satirSayisi, sutunSayisi;
 GLfloat objeGenisligi, objeYuksekligi;
-
+float hucreGenisligi;
+float hucreYuksekligi;
 
 struct Vertex {
     Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) {}
@@ -373,26 +374,66 @@ class Tavsan {
 public:
     GLfloat x;
     GLfloat y;
+    GLfloat olmasiGerekenY;
     GLfloat genislik;
     GLfloat yukseklik;
     std::vector<GLfloat> renk;
+    bool animating;
+    bool patliyor = false;
+    bool patladi = false;
+    bool kaydi = false;
+    GLfloat patlamaScale;
 
-    Tavsan() {
+    Tavsan(): animating(false), patlamaScale(1.0) {
 
     }
 
+    bool kayiyor() {
+        return olmasiGerekenY <= y;
+    }
 
     void ciz(float angle) {
         // todo: color
         glLoadIdentity();
         glTranslatef(x, y, -10);
+
         GLfloat olmasiGerekenGenislik = 20.0 / sutunSayisi;
         GLfloat olmasiGerekenYukseklik = 20.0 / satirSayisi;
         GLfloat genislikScale = (olmasiGerekenGenislik / objeGenisligi) * 0.75;
         GLfloat yukseklikScale = (olmasiGerekenYukseklik / objeYuksekligi) * 0.75;
         glScalef(genislikScale,yukseklikScale,1);
+
+        if (patliyor) {
+            patlamaScale += 0.01;
+            if (patlamaScale >= 1.5) {
+                // patladi
+                patladi = true;
+                patliyor = false;
+            }
+        }
+
+        if (kayiyor()) {
+            animating = true;
+            y -= 0.05;
+            if (!kayiyor()) {
+                kaydi = true;
+                animating = false;
+            }
+        }
+
+        glScalef(patlamaScale, patlamaScale, 1);
         glRotatef(angle, 0, 1, 0);
-        drawModel();
+        if (!patladi) {
+            drawModel();
+        }
+
+    }
+
+    void patlamayiBaslat() {
+        if (!animating) {
+            animating = true;
+            patliyor = true;
+        }
     }
 };
 
@@ -408,13 +449,13 @@ public:
     };
 
     Tavsanlar() {
-        tavsanlar = std::vector<std::vector<Tavsan>>(satirSayisi + 1, std::vector<Tavsan>(sutunSayisi));
+        // todo: en basta yan yana gelenleri patlatmayi unutma
+        tavsanlar = std::vector<std::vector<Tavsan>>(satirSayisi, std::vector<Tavsan>(sutunSayisi));
         for (int i = 0; i < tavsanlar.size(); ++i) {
             for (int j = 0; j < tavsanlar[0].size(); ++j) {
-                float hucreGenisligi = 20.0 / sutunSayisi;
-                float hucreYuksekligi = 20.0 / satirSayisi;
-                float hucreX = -10 + (j + 0.5) * hucreGenisligi;
-                float hucreY = 10 - (i - 1 + 0.5) * hucreYuksekligi;
+
+                float hucreX = getX(j);
+                float hucreY = getY(i);
                 tavsanlar[i][j].x = hucreX;
                 tavsanlar[i][j].y = hucreY;
                 tavsanlar[i][j].renk = colors[rand() % 5];
@@ -422,17 +463,52 @@ public:
         }
     }
 
+    GLfloat getX(int j) {
+        return -10 + (j + 0.5) * hucreGenisligi;
+    }
+
+    GLfloat getY(int i) {
+        return 10 - (i + 0.5) * hucreYuksekligi;
+    }
+
     void ciz(float angle) {
+
+        for (int j = 0; j < tavsanlar[0].size(); ++j) {
+            std::vector<Tavsan> patlamayanlar;
+            for (int i = 0; i < tavsanlar.size(); ++i) {
+                auto& tavsan = tavsanlar[i][j];
+                if (!tavsan.patladi) {
+                    patlamayanlar.push_back(tavsan);
+                }
+            }
+            for (int i = patlamayanlar.size(), rastgeleTavsanI = 0; i < satirSayisi; ++i, rastgeleTavsanI++) {
+                Tavsan rastgeleTavsan;
+                rastgeleTavsan.renk = colors[rand() % 5];
+                rastgeleTavsan.x = getX(j);
+                rastgeleTavsan.y = getY(-(rastgeleTavsanI+1));
+                rastgeleTavsan.olmasiGerekenY = getY(i);
+
+                patlamayanlar.push_back(rastgeleTavsan);
+            }
+            for (int i = 0; i < tavsanlar.size(); ++i) {
+                tavsanlar[i][j] = patlamayanlar[i];
+                tavsanlar[i][j].olmasiGerekenY = getY(i);
+            }
+        }
         for (int i = 0; i < tavsanlar.size(); ++i) {
             for (int j = 0; j < tavsanlar[0].size(); ++j) {
                 tavsanlar[i][j].ciz(angle);
             }
         }
     }
+
+    void patlat(int i, int j) {
+        tavsanlar[i][j].patlamayiBaslat();
+    }
 };
+Tavsanlar* tavsanlar = nullptr;
 
-
-void display(Tavsanlar &tavsanlar) {
+void display() {
     glClearColor(0, 0, 0, 1);
     glClearDepth(1.0f);
     glClearStencil(0);
@@ -445,7 +521,7 @@ void display(Tavsanlar &tavsanlar) {
     // todo: renk
     // todo: boyut
 
-    tavsanlar.ciz(angle);
+    tavsanlar->ciz(angle);
 
 
     angle += 0.5;
@@ -480,15 +556,24 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
         double xpos, ypos;
         //getting cursor position
         glfwGetCursorPos(window, &xpos, &ypos);
+        float hucreGenisligiPx = gWidth / sutunSayisi;
+        float hucreYuksekligiPx = gHeight / satirSayisi;
+        int j = xpos / hucreGenisligiPx;
+        int i = ypos / hucreYuksekligiPx;
         cout << "Cursor Position at (" << xpos << " : " << ypos << endl;
-        glfwSetWindowShouldClose(window, GL_TRUE);
+        cout << "Cursor Position at (" << gWidth << " : " << gHeight << endl;
+        cout << "Cursor Position at (" << hucreGenisligiPx << " : " << hucreYuksekligiPx << endl;
+        cout << "Cursor Position at (" << i << " : " << j << endl;
+        tavsanlar->patlat(i, j);
+
+        //glfwSetWindowShouldClose(window, GL_TRUE);
     }
 }
 
 void mainLoop(GLFWwindow *window) {
-    Tavsanlar tavsanlar;
+    tavsanlar = new Tavsanlar();
     while (!glfwWindowShouldClose(window)) {
-        display(tavsanlar);
+        display();
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -504,6 +589,8 @@ int main(int argc, char **argv)   // Create Main Function For Bringing It All To
 
     satirSayisi = stoi(argv[2]);
     sutunSayisi = stoi(argv[1]);
+    hucreGenisligi = 20.0 / sutunSayisi;
+    hucreYuksekligi = 20.0 / satirSayisi;
     auto objectDosyasi = argv[3];
     printf("satir: %d, sutun: %d, objectDosyasi: %s\n", satirSayisi, sutunSayisi, objectDosyasi);
 
