@@ -375,8 +375,6 @@ public:
     GLfloat x;
     GLfloat y;
     GLfloat olmasiGerekenY;
-    GLfloat genislik;
-    GLfloat yukseklik;
     std::vector<GLfloat> renk;
     bool animating;
     bool patliyor = false;
@@ -389,7 +387,7 @@ public:
     }
 
     bool kayiyor() {
-        return olmasiGerekenY <= y;
+        return olmasiGerekenY < y;
     }
 
     void ciz(float angle) {
@@ -458,6 +456,7 @@ public:
                 float hucreY = getY(i);
                 tavsanlar[i][j].x = hucreX;
                 tavsanlar[i][j].y = hucreY;
+                tavsanlar[i][j].olmasiGerekenY = hucreY;
                 tavsanlar[i][j].renk = colors[rand() % 5];
             }
         }
@@ -491,8 +490,9 @@ public:
                 patlamayanlar.push_back(rastgeleTavsan);
             }
             for (int i = tavsanlar.size()-1; i >= 0 ; --i) {
-                tavsanlar[i][j] = patlamayanlar[i];
+                tavsanlar[i][j] = patlamayanlar[patlamayanlar.size() - i - 1];
                 tavsanlar[i][j].olmasiGerekenY = getY(i);
+                int a = 5;
             }
         }
         for (int i = 0; i < tavsanlar.size(); ++i) {
