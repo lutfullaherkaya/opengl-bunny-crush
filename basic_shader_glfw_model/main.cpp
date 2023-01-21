@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <map>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -10,6 +11,11 @@
 #include <GL/glew.h>   // The GL Header File
 #include <GL/gl.h>   // The GL Header File
 #include <GLFW/glfw3.h> // The GLFW header
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <ft2build.h>
+#include FT_FREETYPE_H
 
 #define BUFFER_OFFSET(i) ((char*)NULL + (i))
 
@@ -81,12 +87,22 @@ easily restart the game or exit the game if they wish.
 using namespace std;
 
 GLuint gProgram;
+GLuint gProgram2ForTxt;
 int gWidth, gHeight;
 int satirSayisi, sutunSayisi;
 GLfloat objeGenisligi, objeYuksekligi;
 float hucreGenisligi;
 float hucreYuksekligi;
 GLFWwindow *window;
+
+
+struct Character {
+    GLuint TextureID;   // ID handle of the glyph texture
+    glm::ivec2 Size;    // Size of glyph
+    glm::ivec2 Bearing;  // Offset from baseline to left/top of glyph
+    GLuint Advance;    // Horizontal offset to advance to next glyph
+};
+std::map<GLchar, Character> Characters;
 
 struct Vertex {
     Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) {}
@@ -127,7 +143,7 @@ vector<Texture> gTextures;
 vector<Normal> gNormals;
 vector<Face> gFaces;
 
-GLuint gVertexAttribBuffer, gIndexBuffer;
+GLuint gVertexAttribBuffer, gTextVBO, gIndexBuffer;
 GLint gInVertexLoc, gInNormalLoc;
 int gVertexDataSizeInBytes, gNormalDataSizeInBytes;
 
@@ -327,14 +343,150 @@ void createFS() {
     glAttachShader(gProgram, fs);
 }
 
+void createVSForTxt(GLuint &program, const string &filename) {
+    string shaderSource;
+
+    if (!ReadDataFromFile(filename, shaderSource)) {
+        cout << "Cannot find file name: " + filename << endl;
+        exit(-1);
+    }
+
+    GLint length = shaderSource.length();
+    const GLchar *shader = (const GLchar *) shaderSource.c_str();
+
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vs, 1, &shader, &length);
+    glCompileShader(vs);
+
+    char output[1024] = {0};
+    glGetShaderInfoLog(vs, 1024, &length, output);
+    printf("VS compile log: %s\n", output);
+
+    glAttachShader(program, vs);
+}
+
+void createFSForTxt(GLuint &program, const string &filename) {
+    string shaderSource;
+
+    if (!ReadDataFromFile(filename, shaderSource)) {
+        cout << "Cannot find file name: " + filename << endl;
+        exit(-1);
+    }
+
+    GLint length = shaderSource.length();
+    const GLchar *shader = (const GLchar *) shaderSource.c_str();
+
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fs, 1, &shader, &length);
+    glCompileShader(fs);
+
+    char output[1024] = {0};
+    glGetShaderInfoLog(fs, 1024, &length, output);
+    printf("FS compile log: %s\n", output);
+
+    glAttachShader(program, fs);
+}
+
 void initShaders() {
     gProgram = glCreateProgram();
+    gProgram2ForTxt = glCreateProgram();
 
-    createVS();
-    createFS();
+
+    createVSForTxt(gProgram, "vert.glsl");
+    createFSForTxt(gProgram, "frag.glsl");
+    createVSForTxt(gProgram2ForTxt, "vert_text.glsl");
+    createFSForTxt(gProgram2ForTxt, "frag_text.glsl");
+
+    glBindAttribLocation(gProgram2ForTxt, 2, "vertex");
+
 
     glLinkProgram(gProgram);
+    glLinkProgram(gProgram2ForTxt);
     glUseProgram(gProgram);
+}
+
+void initFonts(int windowWidth, int windowHeight) {
+    // Set OpenGL options
+    //glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glm::mat4 projection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -20.0f, 20.0f);
+    glUseProgram(gProgram2ForTxt);
+    glUniformMatrix4fv(glGetUniformLocation(gProgram2ForTxt, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+    // FreeType
+    FT_Library ft;
+    // All functions return a value different than 0 whenever an error occurred
+    if (FT_Init_FreeType(&ft)) {
+        std::cout << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
+    }
+
+    // Load font as face
+    FT_Face face;
+    if (FT_New_Face(ft, "/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf", 0, &face)) {
+        std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;
+    }
+
+    // Set size to load glyphs as
+    FT_Set_Pixel_Sizes(face, 0, 48);
+
+    // Disable byte-alignment restriction
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    // Load first 128 characters of ASCII set
+    for (GLubyte c = 0; c < 128; c++) {
+        // Load character glyph
+        if (FT_Load_Char(face, c, FT_LOAD_RENDER)) {
+            std::cout << "ERROR::FREETYTPE: Failed to load Glyph" << std::endl;
+            continue;
+        }
+        // Generate texture
+        GLuint texture;
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RED,
+                face->glyph->bitmap.width,
+                face->glyph->bitmap.rows,
+                0,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
+                face->glyph->bitmap.buffer
+        );
+        // Set texture options
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Now store character for later use
+        Character character = {
+                texture,
+                glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+                glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+                face->glyph->advance.x
+        };
+        Characters.insert(std::pair<GLchar, Character>(c, character));
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    // Destroy FreeType once we're finished
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
+
+    //
+    // Configure VBO for texture quads
+    //
+    glGenBuffers(1, &gTextVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, gTextVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void initVBO() {
@@ -423,10 +575,12 @@ void init(const char *objFileName) {
 
     glEnable(GL_DEPTH_TEST);
     initShaders();
+    initFonts(gWidth, gHeight);
     initVBO();
 }
 
 void drawModel() {
+    glUseProgram(gProgram);
     glBindBuffer(GL_ARRAY_BUFFER, gVertexAttribBuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBuffer);
 
@@ -434,6 +588,55 @@ void drawModel() {
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(gVertexDataSizeInBytes));
 
     glDrawElements(GL_TRIANGLES, gFaces.size() * 3, GL_UNSIGNED_INT, 0);
+}
+
+void renderText(const std::string &text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color) {
+    // Activate corresponding render state
+    glUseProgram(gProgram2ForTxt);
+    glUniform3f(glGetUniformLocation(gProgram2ForTxt, "textColor"), color.x, color.y, color.z);
+    glActiveTexture(GL_TEXTURE0);
+
+    // Iterate through all characters
+    std::string::const_iterator c;
+    for (c = text.begin(); c != text.end(); c++) {
+        Character ch = Characters[*c];
+
+        GLfloat xpos = x + ch.Bearing.x * scale;
+        GLfloat ypos = y - (ch.Size.y - ch.Bearing.y) * scale;
+
+        GLfloat w = ch.Size.x * scale;
+        GLfloat h = ch.Size.y * scale;
+
+        // Update VBO for each character
+        GLfloat vertices[6][4] = {
+                {xpos,     ypos + h, 0.0, 0.0},
+                {xpos,     ypos,     0.0, 1.0},
+                {xpos + w, ypos,     1.0, 1.0},
+
+                {xpos,     ypos + h, 0.0, 0.0},
+                {xpos + w, ypos,     1.0, 1.0},
+                {xpos + w, ypos + h, 1.0, 0.0}
+        };
+
+        // Render glyph texture over quad
+        glBindTexture(GL_TEXTURE_2D, ch.TextureID);
+
+        // Update content of VBO memory
+        glBindBuffer(GL_ARRAY_BUFFER, gTextVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices),
+                        vertices); // Be sure to use glBufferSubData and not glBufferData
+
+        //glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        // Render quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        // Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+
+        x += (ch.Advance >> 6) *
+             scale; // Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 class Tavsan {
@@ -448,7 +651,7 @@ public:
     bool kaydi = false;
     GLfloat patlamaScale;
 
-    Tavsan(): animasyonOynuyor(false), patlamaScale(1.0) {
+    Tavsan() : animasyonOynuyor(false), patlamaScale(1.0) {
 
     }
 
@@ -465,7 +668,7 @@ public:
         GLfloat olmasiGerekenYukseklik = 20.0 / satirSayisi;
         GLfloat genislikScale = (olmasiGerekenGenislik / objeGenisligi) * 0.67;
         GLfloat yukseklikScale = (olmasiGerekenYukseklik / objeYuksekligi) * 0.67;
-        glScalef(genislikScale,yukseklikScale,1);
+        glScalef(genislikScale, yukseklikScale, 1);
 
         if (patliyor) {
             patlamaScale += 0.01;
@@ -505,11 +708,11 @@ class Tavsanlar {
 public:
     std::vector<std::vector<Tavsan>> tavsanlar;
     std::vector<std::vector<GLfloat>> colors = {
-            {1.0, 0, 0}, // red
-            {0, 1.0, 0}, // green
-            {0, 0, 1.0}, // blue
+            {1.0, 0,   0}, // red
+            {0,   1.0, 0}, // green
+            {0,   0,   1.0}, // blue
             {1.0, 1.0, 0}, // yellow
-            {1.0, 0, 1.0} // purple
+            {1.0, 0,   1.0} // purple
     };
 
     Tavsanlar() {
@@ -537,8 +740,8 @@ public:
     }
 
     bool herhangiAnimasyonOynuyor() {
-        for (auto & satir: tavsanlar) {
-            for (auto & tavsan: satir) {
+        for (auto &satir: tavsanlar) {
+            for (auto &tavsan: satir) {
                 if (tavsan.animasyonOynuyor) {
                     return true;
                 }
@@ -551,8 +754,8 @@ public:
 
         for (int j = 0; j < tavsanlar[0].size(); ++j) {
             std::vector<Tavsan> patlamayanlar;
-            for (int i = tavsanlar.size()-1; i >= 0 ; --i) {
-                auto& tavsan = tavsanlar[i][j];
+            for (int i = tavsanlar.size() - 1; i >= 0; --i) {
+                auto &tavsan = tavsanlar[i][j];
                 if (!tavsan.patladi) {
                     patlamayanlar.push_back(tavsan);
                 }
@@ -561,12 +764,12 @@ public:
                 Tavsan rastgeleTavsan;
                 rastgeleTavsan.renk = colors[rand() % 5];
                 rastgeleTavsan.x = getX(j);
-                rastgeleTavsan.y = getY(-(rastgeleTavsanI+1));
+                rastgeleTavsan.y = getY(-(rastgeleTavsanI + 1));
                 rastgeleTavsan.olmasiGerekenY = getY(i);
 
                 patlamayanlar.push_back(rastgeleTavsan);
             }
-            for (int i = tavsanlar.size()-1; i >= 0 ; --i) {
+            for (int i = tavsanlar.size() - 1; i >= 0; --i) {
                 tavsanlar[i][j] = patlamayanlar[patlamayanlar.size() - i - 1];
                 tavsanlar[i][j].olmasiGerekenY = getY(i);
             }
@@ -585,7 +788,8 @@ public:
 
     }
 };
-Tavsanlar* tavsanlar = nullptr;
+
+Tavsanlar *tavsanlar = nullptr;
 
 void display() {
     glClearColor(0, 0, 0, 1);
@@ -602,6 +806,11 @@ void display() {
 
     tavsanlar->ciz(angle);
 
+    assert(glGetError() == GL_NO_ERROR);
+
+    renderText("CENG 477 - 2022", 0, 0, 1, glm::vec3(0, 1, 1));
+
+    assert(glGetError() == GL_NO_ERROR);
 
     angle += 0.5;
 }
