@@ -41,7 +41,7 @@ visible in the game.
 axis of rotation, and the angle of 0.5 degrees specifies the amount of rotation that will occur
 around this axis at each frame. This will cause the objects to rotate slightly at each frame of
 the game.
-7. DAHA YAPILMADI If there are more than three objects of the same color in a row or column, they will explode
+7. YAPILDI If there are more than three objects of the same color in a row or column, they will explode
 and the objects above them will slide down to fill the empty space. For example, if there are
 four blue objects in a row, they will all explode and the objects above them will slide down
 to fill the empty spaces.
@@ -58,22 +58,22 @@ point it will be removed from the game.
 10. YAPILDI The player can interact with the game using the mouse to manually explode bunnies and
 change the arrangement of the bunnies on the grid. For example, the player can click on a
 bunny to manually cause it to explode and match with other bunnies of the same color.
-11. YAPILDI MATCHING HARIC Mouse interaction and color matching will be disabled until all animations have completed.
+11. YAPILDI Mouse interaction and color matching will be disabled until all animations have completed.
 This means that the player will not be able to interact with the game using the mouse or
 the game won’t match new objects until all animations, such as the slide animation for new
 bunnies and the explosion animation for matching bunnies, have finished.
-12. DAHA YAPILMADI Each object in the game will have its own point light source, located at the same x and y
+12. YAPILDI Each object in the game will have its own point light source, located at the same x and y
 coordinates as the object and at a z coordinate of 1. The position of the light will move
 together with the object during the animation. A point light is a light source that emits light
 in all directions from a single point. By giving each object its own point light source, you can
 create a more realistic lighting effect in the game. In order to get same view for each of the
 objects, you will accept as eye position is at the same point with the light source.
-13. DAHA YAPILMADI The game will keep track of the number of moves made by the player, as well as the number
+13. YAPILDI The game will keep track of the number of moves made by the player, as well as the number
 of matched objects and the score earned. The number of moves is the number of times the
 player has manually exploded a bunny. The number of matched objects is the total number
 of objects that have exploded as part of a match. The score is the total number of points
 earned by the player.
-14. These values will be displayed at the bottom of the window. The number of moves, the
+14. YAPILDI These values will be displayed at the bottom of the window. The number of moves, the
 number of matched objects, and the score will all be displayed at the bottom of the game
 window, so that the player can see their progress as they play.
 15. YAPILDI If the user presses the ’R’ key, the game will restart with a new random arrangement of
@@ -348,9 +348,6 @@ void initShaders() {
     createVS(gProgram[0], "vert0.glsl");
     createFS(gProgram[0], "frag0.glsl");
 
-    createVS(gProgram[1], "vert1.glsl");
-    createFS(gProgram[1], "frag1.glsl");
-
     createVS(gProgram[2], "vert_text.glsl");
     createFS(gProgram[2], "frag_text.glsl");
 
@@ -360,10 +357,12 @@ void initShaders() {
     glBindAttribLocation(gProgram[1], 1, "inNormal");
     glBindAttribLocation(gProgram[2], 2, "vertex");
 
+
     glLinkProgram(gProgram[0]);
     glLinkProgram(gProgram[1]);
     glLinkProgram(gProgram[2]);
     glUseProgram(gProgram[0]);
+
 
     gIntensityLoc = glGetUniformLocation(gProgram[0], "intensity");
     cout << "gIntensityLoc = " << gIntensityLoc << endl;
@@ -605,13 +604,16 @@ public:
     GLfloat y;
     GLfloat olmasiGerekenY;
     std::vector<GLfloat> renk;
+    int renkId = 0;
     bool animasyonOynuyor;
     bool patliyor = false;
+    bool farePatlatiyor = false;
     bool patladi = false;
     bool kaydi = false;
     GLfloat patlamaScale;
+    int *skorPtr;
 
-    Tavsan() : animasyonOynuyor(false), patlamaScale(1.0) {
+    Tavsan(int *skorPtr = nullptr) : animasyonOynuyor(false), patlamaScale(1.0), skorPtr(skorPtr) {
 
     }
 
@@ -621,13 +623,18 @@ public:
 
     void ciz(float angle) {
         // todo: color
+
         glUseProgram(gProgram[0]);
+
+
+
+
 
 
 
         //glTranslatef(x, y, -10);
         glm::mat4 T = glm::translate(glm::mat4(1.f), glm::vec3(x, y, -10.f));
-        glm::mat4 modelMat = T;
+        glm::mat4 matModelim = T;
 
         GLfloat olmasiGerekenGenislik = 20.0 / sutunSayisi;
         GLfloat olmasiGerekenYukseklik = 20.0 / satirSayisi;
@@ -635,7 +642,7 @@ public:
         GLfloat yukseklikScale = (olmasiGerekenYukseklik / objeYuksekligi) * 0.67;
 
         //glScalef(genislikScale, yukseklikScale, 1);
-        modelMat = modelMat * glm::scale(glm::mat4(1.f), glm::vec3(genislikScale, yukseklikScale, 1));
+        matModelim = matModelim * glm::scale(glm::mat4(1.f), glm::vec3(genislikScale, yukseklikScale, 1));
 
         if (patliyor) {
             patlamaScale += 0.01;
@@ -643,6 +650,9 @@ public:
                 // patladi
                 patladi = true;
                 patliyor = false;
+                if (skorPtr && !farePatlatiyor) {
+                    (*skorPtr)++;
+                }
             }
         }
 
@@ -656,28 +666,32 @@ public:
         }
 
         //glScalef(patlamaScale, patlamaScale, 1);
-        modelMat = modelMat * glm::scale(glm::mat4(1.f), glm::vec3(patlamaScale, patlamaScale, 1));
+        matModelim = matModelim * glm::scale(glm::mat4(1.f), glm::vec3(patlamaScale, patlamaScale, 1));
         //glRotatef(angle, 0, 1, 0);
-        modelMat = modelMat * glm::rotate(glm::mat4(1.f), glm::radians(angle), glm::vec3(0, 1, 0));
+        matModelim = matModelim * glm::rotate(glm::mat4(1.f), glm::radians(angle), glm::vec3(0, 1, 0));
 
-        glm::mat4 modelMatInv = glm::transpose(glm::inverse(modelMat));
+        glm::mat4 modelMatInv = glm::transpose(glm::inverse(matModelim));
         //glm::mat4 perspMat = glm::perspective(glm::radians(45.0f), 1.f, 1.0f, 100.0f);
         glm::mat4 orthoProj = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -20.0f, 20.0f);
 
-        glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMat"), 1, GL_FALSE, glm::value_ptr(modelMat));
-        glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMatInvTr"), 1, GL_FALSE, glm::value_ptr(modelMatInv));
+        float renkK = 0.067;
+        glUniform3f(glGetUniformLocation(gProgram[0], "kd"), renk[0] * renkK, renk[1] * renkK, renk[2] * renkK);
+        glUniform3f(glGetUniformLocation(gProgram[0], "lightPos"), x, y, 1);
+        glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMat"), 1, GL_FALSE, glm::value_ptr(matModelim));
+        glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMatInvTr"), 1, GL_FALSE,
+                           glm::value_ptr(modelMatInv));
         glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "perspectiveMat"), 1, GL_FALSE, glm::value_ptr(orthoProj));
-
         if (!patladi) {
             drawModel();
         }
 
     }
 
-    void patlamayiBaslat() {
+    void patlamayiBaslat(bool farePatlatiyor = false) {
         if (!animasyonOynuyor) {
             animasyonOynuyor = true;
             patliyor = true;
+            this->farePatlatiyor = farePatlatiyor;
         }
     }
 };
@@ -689,9 +703,11 @@ public:
             {1.0, 0,   0}, // red
             {0,   1.0, 0}, // green
             {0,   0,   1.0}, // blue
-            {1.0, 1.0, 0}, // yellow
+            {1.0, 0.7, 0}, // yellowish orange
             {1.0, 0,   1.0} // purple
     };
+    int moves = 0;
+    int skor = 0;
 
     Tavsanlar() {
         // todo: en basta yan yana gelenleri patlatmayi unutma
@@ -704,7 +720,10 @@ public:
                 tavsanlar[i][j].x = hucreX;
                 tavsanlar[i][j].y = hucreY;
                 tavsanlar[i][j].olmasiGerekenY = hucreY;
-                tavsanlar[i][j].renk = colors[rand() % 5];
+                int randInt = rand() % 5;
+                tavsanlar[i][j].renk = colors[randInt];
+                tavsanlar[i][j].renkId = randInt;
+                tavsanlar[i][j].skorPtr = &skor;
             }
         }
     }
@@ -729,6 +748,51 @@ public:
     }
 
     void ciz(float angle) {
+        if (!herhangiAnimasyonOynuyor()) {
+            for (int i = 0; i < tavsanlar.size(); ++i) {
+                for (int j = 0; j < tavsanlar[0].size(); ++j) {
+                    int count = 0;
+                    for (int k = j; k < tavsanlar[0].size(); ++k) {
+                        if (tavsanlar[i][j].renk == tavsanlar[i][k].renk) {
+                            count++;
+
+                            if (count >= 3) {
+                                for (int u = 0; u < count; ++u) {
+                                    if (!tavsanlar[i][k - u].patliyor) {
+                                        tavsanlar[i][k - u].patlamayiBaslat();
+
+                                    }
+
+                                }
+                            }
+                        } else {
+                            count = 0;
+                            break;
+                        }
+                    }
+                    count = 0;
+                    for (int k = i; k < tavsanlar.size(); ++k) {
+                        if (tavsanlar[i][j].renk == tavsanlar[k][j].renk) {
+                            count++;
+
+                            if (count >= 3) {
+                                for (int u = 0; u < count; ++u) {
+                                    if (!tavsanlar[k - u][j].patliyor) {
+                                        tavsanlar[k - u][j].patlamayiBaslat();
+                                    }
+
+                                }
+                            }
+                        } else {
+                            count = 0;
+                            break;
+                        }
+                    }
+                    tavsanlar[i][j].ciz(angle);
+                }
+            }
+
+        }
 
         for (int j = 0; j < tavsanlar[0].size(); ++j) {
             std::vector<Tavsan> patlamayanlar;
@@ -740,10 +804,13 @@ public:
             }
             for (int i = patlamayanlar.size(), rastgeleTavsanI = 0; i < satirSayisi; ++i, rastgeleTavsanI++) {
                 Tavsan rastgeleTavsan;
-                rastgeleTavsan.renk = colors[rand() % 5];
+                int randInt = rand() % 5;
+                rastgeleTavsan.renk = colors[randInt];
+                rastgeleTavsan.renkId = randInt;
                 rastgeleTavsan.x = getX(j);
                 rastgeleTavsan.y = getY(-(rastgeleTavsanI + 1));
                 rastgeleTavsan.olmasiGerekenY = getY(i);
+                rastgeleTavsan.skorPtr = &skor;
 
                 patlamayanlar.push_back(rastgeleTavsan);
             }
@@ -752,6 +819,7 @@ public:
                 tavsanlar[i][j].olmasiGerekenY = getY(i);
             }
         }
+
         for (int i = 0; i < tavsanlar.size(); ++i) {
             for (int j = 0; j < tavsanlar[0].size(); ++j) {
                 tavsanlar[i][j].ciz(angle);
@@ -759,9 +827,11 @@ public:
         }
     }
 
-    void patlat(int i, int j) {
+    void patlat(int i, int j, bool farePatlatiyor = false) {
         if (!herhangiAnimasyonOynuyor()) {
-            tavsanlar[i][j].patlamayiBaslat();
+            moves++;
+
+            tavsanlar[i][j].patlamayiBaslat(farePatlatiyor);
         }
 
     }
@@ -818,7 +888,8 @@ void display() {
     drawModel();*/
     assert(glGetError() == GL_NO_ERROR);
 
-    renderText("CENG 477 - 2022", 0, 0, 1, glm::vec3(0, 1, 1));
+    renderText("Moves: " + to_string(tavsanlar->moves) + " Score: " + to_string(tavsanlar->skor), 0, 0, 0.67,
+               glm::vec3(0, 1, 1));
 
     assert(glGetError() == GL_NO_ERROR);
 
@@ -845,24 +916,6 @@ void reshape(GLFWwindow *window, int w, int h) {
 void keyboard(GLFWwindow *window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GL_TRUE);
-    } else if (key == GLFW_KEY_F && action == GLFW_PRESS) {
-        cout << "F pressed" << endl;
-        glUseProgram(gProgram[1]);
-    } else if (key == GLFW_KEY_V && action == GLFW_PRESS) {
-        cout << "V pressed" << endl;
-        glUseProgram(gProgram[0]);
-    } else if (key == GLFW_KEY_D && action == GLFW_PRESS) {
-        cout << "D pressed" << endl;
-        gIntensity /= 1.5;
-        cout << "gIntensity = " << gIntensity << endl;
-        glUseProgram(gProgram[0]);
-        glUniform1f(gIntensityLoc, gIntensity);
-    } else if (key == GLFW_KEY_B && action == GLFW_PRESS) {
-        cout << "B pressed" << endl;
-        gIntensity *= 1.5;
-        cout << "gIntensity = " << gIntensity << endl;
-        glUseProgram(gProgram[0]);
-        glUniform1f(gIntensityLoc, gIntensity);
     } else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
         delete tavsanlar;
         tavsanlar = new Tavsanlar();
@@ -882,7 +935,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
         cout << "Cursor Position at (" << gWidth << " : " << gHeight << endl;
         cout << "Cursor Position at (" << hucreGenisligiPx << " : " << hucreYuksekligiPx << endl;
         cout << "Cursor Position at (" << i << " : " << j << endl;
-        tavsanlar->patlat(i, j);
+        tavsanlar->patlat(i, j, true);
 
         //glfwSetWindowShouldClose(window, GL_TRUE);
     }

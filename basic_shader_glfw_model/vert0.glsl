@@ -1,15 +1,15 @@
 #version 120 
 
-vec3 lightPos = vec3(5, 5, 5);
+uniform vec3 lightPos = vec3(5, 5, 5);
 vec3 eyePos = vec3(0, 0, 0);
 
 uniform float intensity;
 vec3 I = vec3(intensity, intensity, intensity);
 vec3 Iamb = vec3(0.8, 0.8, 0.8);
 
-vec3 kd = vec3(0.7, 0, 0.2);
-vec3 ka = vec3(0.1, 0.1, 0.1);
-vec3 ks = vec3(0.8, 0.8, 0.8);
+uniform vec3 kd = vec3(0, 0, 0.5);
+uniform vec3 ka = vec3(0.1, 0.1, 0.1);
+uniform vec3 ks = vec3(0.8, 0.8, 0.8);
 
 uniform mat4 modelingMat;
 uniform mat4 modelingMatInvTr;
