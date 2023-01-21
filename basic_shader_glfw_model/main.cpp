@@ -654,7 +654,7 @@ public:
                 animasyonOynuyor = false;
             }
         }
-        // todo:
+
         //glScalef(patlamaScale, patlamaScale, 1);
         modelMat = modelMat * glm::scale(glm::mat4(1.f), glm::vec3(patlamaScale, patlamaScale, 1));
         //glRotatef(angle, 0, 1, 0);
