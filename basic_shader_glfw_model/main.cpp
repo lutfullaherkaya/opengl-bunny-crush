@@ -13,6 +13,71 @@
 
 #define BUFFER_OFFSET(i) ((char*)NULL + (i))
 
+/*
+ * 2 Specifications
+1. YAPILDI The executable file for this assignment will be named “hw3” with a window size of 640 × 600.
+This is the file that you will run to start the game. The program gets grid shape and the
+object file name as command line argument.
+2. YAPILDI The game board will have a grid size given as command line argument. For example, “10 5”
+means that the game board will be a 10x5 grid of squares, each containing an object.
+3. YAPILDI Your program will parse the object file and use this information to create the objects for the
+game. The object file contains information about the shape and appearance of the object,
+such as the vertices and faces that make up the object’s 3D model. Your program will use
+this information to create a 3D model of the object that can be displayed in the game.
+4. YAPILDI You will resize the objects considering the grid size to fit into the window properly.
+5. YAPILDI The scene will be rendered using an orthographic projection, with the specified left, right,
+bottom, top, near, and far parameters of (-10, 10, -10, 10, -20, 20). Orthographic projection
+is a way of representing 3D objects on a 2D surface, where the size and shape of the objects
+are not affected by their distance from the viewer. The left, right, bottom, top, near, and far
+parameters specify the dimensions of the viewing volume, or the region of 3D space that is
+visible in the game.
+6. YAPILDI At each frame of the game, the objects will rotate around the vector (0, 1, 0) at an angle of
+0.5 degrees. A frame is a single image displayed by the game. The vector (0, 1, 0) specifies an
+axis of rotation, and the angle of 0.5 degrees specifies the amount of rotation that will occur
+around this axis at each frame. This will cause the objects to rotate slightly at each frame of
+the game.
+7. DAHA YAPILMADI If there are more than three objects of the same color in a row or column, they will explode
+and the objects above them will slide down to fill the empty space. For example, if there are
+four blue objects in a row, they will all explode and the objects above them will slide down
+to fill the empty spaces.
+8. YAPILDI New random color objects will be added at the top of the grid and will slide down to their
+correct positions using an animation in which the y position of the bunny object is decreased
+by 0.05 at each frame. When a bunny explodes and leaves an empty space, a new bunny will
+be added at the top of the grid. The new bunny will start at the top of the grid and slide
+down to its correct position using an animation in which the y position of the bunny object
+is decreased by 0.05 at each frame.
+9. YAPILDI If a bunny explodes, it will be scaled up by 0.01 in all directions at each frame until it reaches
+1.5 times its original size, at which point it will be deleted. This will create an animation in
+which the exploding bunny grows in size until it reaches 1.5 times its original size, at which
+point it will be removed from the game.
+10. YAPILDI The player can interact with the game using the mouse to manually explode bunnies and
+change the arrangement of the bunnies on the grid. For example, the player can click on a
+bunny to manually cause it to explode and match with other bunnies of the same color.
+11. YAPILDI MATCHING HARIC Mouse interaction and color matching will be disabled until all animations have completed.
+This means that the player will not be able to interact with the game using the mouse or
+the game won’t match new objects until all animations, such as the slide animation for new
+bunnies and the explosion animation for matching bunnies, have finished.
+12. DAHA YAPILMADI Each object in the game will have its own point light source, located at the same x and y
+coordinates as the object and at a z coordinate of 1. The position of the light will move
+together with the object during the animation. A point light is a light source that emits light
+in all directions from a single point. By giving each object its own point light source, you can
+create a more realistic lighting effect in the game. In order to get same view for each of the
+objects, you will accept as eye position is at the same point with the light source.
+13. DAHA YAPILMADI The game will keep track of the number of moves made by the player, as well as the number
+of matched objects and the score earned. The number of moves is the number of times the
+player has manually exploded a bunny. The number of matched objects is the total number
+of objects that have exploded as part of a match. The score is the total number of points
+earned by the player.
+14. These values will be displayed at the bottom of the window. The number of moves, the
+number of matched objects, and the score will all be displayed at the bottom of the game
+window, so that the player can see their progress as they play.
+15. YAPILDI If the user presses the ’R’ key, the game will restart with a new random arrangement of
+objects. If the user presses the ’ESC’ key, the game will close. This will allow the player to
+easily restart the game or exit the game if they wish.
+ */
+
+
+
 using namespace std;
 
 GLuint gProgram;
@@ -21,6 +86,7 @@ int satirSayisi, sutunSayisi;
 GLfloat objeGenisligi, objeYuksekligi;
 float hucreGenisligi;
 float hucreYuksekligi;
+GLFWwindow *window;
 
 struct Vertex {
     Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) {}
@@ -376,13 +442,13 @@ public:
     GLfloat y;
     GLfloat olmasiGerekenY;
     std::vector<GLfloat> renk;
-    bool animating;
+    bool animasyonOynuyor;
     bool patliyor = false;
     bool patladi = false;
     bool kaydi = false;
     GLfloat patlamaScale;
 
-    Tavsan(): animating(false), patlamaScale(1.0) {
+    Tavsan(): animasyonOynuyor(false), patlamaScale(1.0) {
 
     }
 
@@ -397,8 +463,8 @@ public:
 
         GLfloat olmasiGerekenGenislik = 20.0 / sutunSayisi;
         GLfloat olmasiGerekenYukseklik = 20.0 / satirSayisi;
-        GLfloat genislikScale = (olmasiGerekenGenislik / objeGenisligi) * 0.75;
-        GLfloat yukseklikScale = (olmasiGerekenYukseklik / objeYuksekligi) * 0.75;
+        GLfloat genislikScale = (olmasiGerekenGenislik / objeGenisligi) * 0.67;
+        GLfloat yukseklikScale = (olmasiGerekenYukseklik / objeYuksekligi) * 0.67;
         glScalef(genislikScale,yukseklikScale,1);
 
         if (patliyor) {
@@ -411,11 +477,11 @@ public:
         }
 
         if (kayiyor()) {
-            animating = true;
+            animasyonOynuyor = true;
             y -= 0.05;
             if (!kayiyor()) {
                 kaydi = true;
-                animating = false;
+                animasyonOynuyor = false;
             }
         }
 
@@ -428,8 +494,8 @@ public:
     }
 
     void patlamayiBaslat() {
-        if (!animating) {
-            animating = true;
+        if (!animasyonOynuyor) {
+            animasyonOynuyor = true;
             patliyor = true;
         }
     }
@@ -470,6 +536,17 @@ public:
         return 10 - (i + 0.5) * hucreYuksekligi;
     }
 
+    bool herhangiAnimasyonOynuyor() {
+        for (auto & satir: tavsanlar) {
+            for (auto & tavsan: satir) {
+                if (tavsan.animasyonOynuyor) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     void ciz(float angle) {
 
         for (int j = 0; j < tavsanlar[0].size(); ++j) {
@@ -492,7 +569,6 @@ public:
             for (int i = tavsanlar.size()-1; i >= 0 ; --i) {
                 tavsanlar[i][j] = patlamayanlar[patlamayanlar.size() - i - 1];
                 tavsanlar[i][j].olmasiGerekenY = getY(i);
-                int a = 5;
             }
         }
         for (int i = 0; i < tavsanlar.size(); ++i) {
@@ -503,7 +579,10 @@ public:
     }
 
     void patlat(int i, int j) {
-        tavsanlar[i][j].patlamayiBaslat();
+        if (!herhangiAnimasyonOynuyor()) {
+            tavsanlar[i][j].patlamayiBaslat();
+        }
+
     }
 };
 Tavsanlar* tavsanlar = nullptr;
@@ -548,6 +627,9 @@ void reshape(GLFWwindow *window, int w, int h) {
 void keyboard(GLFWwindow *window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GL_TRUE);
+    } else if (key == GLFW_KEY_R && action == GLFW_PRESS) {
+        delete tavsanlar;
+        tavsanlar = new Tavsanlar();
     }
 }
 
@@ -581,7 +663,6 @@ void mainLoop(GLFWwindow *window) {
 
 int main(int argc, char **argv)   // Create Main Function For Bringing It All Together
 {
-    GLFWwindow *window;
     if (!glfwInit()) {
         exit(-1);
     }
